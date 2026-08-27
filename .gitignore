@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+*.xlsx
+*.asc
+data/raw/*.csv
+!data/raw/.gitkeep

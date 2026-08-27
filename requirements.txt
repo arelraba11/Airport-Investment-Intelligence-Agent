@@ -1,0 +1,7 @@
+pandas
+fastapi
+uvicorn
+anthropic
+python-dotenv
+pytest
+openpyxl
