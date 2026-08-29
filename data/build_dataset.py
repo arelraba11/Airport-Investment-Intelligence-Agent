@@ -9,7 +9,6 @@ Run from the data/ directory:
 """
 import csv
 import os
-import sys
 import urllib.request
 
 import pandas as pd
