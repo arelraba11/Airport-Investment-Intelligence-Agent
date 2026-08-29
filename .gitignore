@@ -7,3 +7,4 @@ __pycache__/
 *.asc
 data/raw/*.csv
 !data/raw/.gitkeep
+PLAN.md
