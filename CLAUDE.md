@@ -127,8 +127,10 @@ methodology regression.
 - **`main.py`** — FastAPI app. `GET /health` reads the live CSV row count (never hardcoded). `POST /chat`
   takes `{message, session_id?}`, mints a `session_id` (uuid4) if absent, and delegates the entire turn to
   `agent.run_agent_turn`. CORS is locked to `http://localhost:5173` (the Vite dev origin). Only an
-  unexpected failure of the Anthropic API call itself propagates as a 500 — every tool-level failure is
-  already caught and recovered inside the agent loop.
+  unexpected failure of the Anthropic API call itself becomes a 500 — returned as an explicit JSON 500
+  (traceback logged) rather than raised, so it passes through the CORS middleware and the browser can
+  distinguish it from a network failure; every tool-level failure is already caught and recovered inside
+  the agent loop.
 - **`sessions.py`** — an in-memory `dict[session_id, list[Message]]`, process-local and non-persistent by
   design: session history is lost on backend restart (confirmed behavior, not a bug — a real store like
   Redis/DB would be needed to survive restarts or scale past one worker).

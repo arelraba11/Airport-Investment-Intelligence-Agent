@@ -7,7 +7,7 @@ until stop_reason == "end_turn" or MAX_TOOL_CALLS total tool calls have run
 in this turn. Every tool error is wrapped as an is_error tool_result so the
 agent can recover instead of the whole request crashing — only an
 unexpected failure of the Anthropic API call itself propagates, to be
-turned into a 500 by main.py. See PLAN.md section A.3 for the full spec.
+turned into a 500 by main.py.
 """
 
 import json

@@ -8,3 +8,4 @@ __pycache__/
 data/raw/*.csv
 !data/raw/.gitkeep
 PLAN.md
+CLAUDE.md
