@@ -33,7 +33,7 @@
 | Component | Weight | What it measures |
 |---|---|---|
 | Congestion | 35% | Annual traffic ÷ runway capacity (230,000 movements/runway/year assumed) |
-| Growth | 25% | CAGR of enplanements, CY22–CY25 |
+| Growth | 25% | CAGR of enplanements, CY22–CY24 (2-year) |
 | Long-haul mix | 15% | Share of flights ≥2,500 great-circle miles |
 | Unmet demand | 25% | `growth_percentile × 0.6 + congestion_percentile × 0.4` (derived heuristic) |
 
@@ -41,7 +41,7 @@ Each raw metric is converted to a **percentile rank (0–100) across all 80 in-s
 
 ### Why percentile normalization — a bug we caught before it shipped
 
-Our first working version of the scorer normalized only `growth_score` to a percentile; `congestion_score` and `long-haul mix` were left as raw values (raw congestion utilization spans roughly 2–22% across the dataset; raw long-haul share is often 0–6% in New England). Because the final score is a weighted sum, **the component with the widest numeric spread dominates the total regardless of its assigned weight** — a well-known pitfall when combining metrics on different scales.
+Our first working version of the scorer normalized only `growth_score` to a percentile; `congestion_score` and `long-haul mix` were left as raw values (raw congestion utilization spans 1.85%–42.7% across the dataset; raw long-haul share is often 0–6% in New England). Because the final score is a weighted sum, **the component with the widest numeric spread dominates the total regardless of its assigned weight** — a well-known pitfall when combining metrics on different scales.
 
 In practice this meant Tweed–New Haven (HVN) — a small airport with a ~29% CAGR off a tiny base — ranked **#1** in New England, ahead of Boston Logan (BOS), the region's largest, busiest, and fastest-growing-in-absolute-terms hub, which ranked **#4**. BOS's congestion advantage (12.0% utilization vs. HVN's 2.5%) barely moved the raw-value sum, while HVN's 100th-percentile growth score dominated both the growth component directly and unmet demand (60% growth-weighted).
 
@@ -78,6 +78,8 @@ The boundary is sharp: **the LLM never computes a number.** Every score, percent
 This is enforced by a hard system-prompt rule ("never report a number without a tool call") and independently verified. For example, the question "What is the unmet flight demand in SFO airport and why?" produced a real `score_airport("SFO")` tool call returning `unmet_demand: 80.25` with `growth: 81.25` (from a 10.85% CAGR) and `congestion: 78.75` (from 16.18% utilization) in its `raw_values`. The reply reproduced these exact figures and the underlying formula (`unmet_demand_score = growth_score × 0.6 + congestion_score × 0.4`) rather than stating a bare number — confirmed against the actual tool trace, not read at face value.
 
 All 7 of Phase A.5's end-to-end test conversations were audited this way: every request/response, including `tool_use`/`tool_result` blocks, was captured via `ANTHROPIC_LOG=debug` and cross-checked numeric claim by numeric claim against the trace. All 10 tool calls made across the 7 tests accounted for every score, percentage, and count quoted back to the user — no invented numbers found.
+
+**One deliberate boundary case: explicitly requested projections.** The "never compute a number" rule governs every stored or scored figure. But if a user *explicitly asks* for an extrapolation the dataset cannot contain — "roughly how many passengers will SFO handle in 2030?" — refusing outright would be less useful than answering honestly. The system prompt therefore carves out exactly one exception: the LLM may do that arithmetic itself, but only on tool-provided inputs (e.g. the tool-returned CY24 enplanements and CAGR), and it must label the result as a derived estimate rather than a measured or scored figure, show the calculation and its assumptions, and state the uncertainty (a recovery-era CAGR compounded forward is a trend line, not a forecast). Every number that describes the dataset as it is still comes from a deterministic tool; the LLM is permitted arithmetic only where the user has knowingly asked to leave the data behind, and never unlabeled.
 
 ---
 

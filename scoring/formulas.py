@@ -7,8 +7,9 @@ is missing — never a fabricated number.
 All four investment_score components are percentile-normalized across
 `full_dataset` before being combined. This is deliberate: components have
 wildly different natural scales (e.g. raw congestion utilization sits in the
-~2-22% band across the current 80-airport scope, while raw longhaul share and
-growth CAGR can range far wider), so combining raw values in a weighted sum
+~1.85-42.7% band across the current 80-airport scope, while raw longhaul share
+and growth CAGR occupy entirely different bands), so combining raw values in a
+weighted sum
 would let the widest-spread component dominate the final score's variance
 regardless of its assigned weight in weights.py. Percentile-normalizing every
 component onto the same 0-100 scale is what makes WEIGHTS actually control
