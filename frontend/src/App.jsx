@@ -1,28 +1,47 @@
 import { useState } from 'react'
 import MessageList from './components/MessageList'
 import MessageInput from './components/MessageInput'
+import SuggestedQuestions from './components/SuggestedQuestions'
+import AssumptionsPanel from './components/AssumptionsPanel'
 import './App.css'
+
+const CHAT_URL = 'http://localhost:8000/chat'
 
 function App() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
-  const [sessionId] = useState(() => crypto.randomUUID())
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
 
-  function handleSend(text) {
+  async function handleSend(text) {
     setMessages((prev) => [...prev, { role: 'user', content: text }])
     setIsLoading(true)
 
-    // Temporary local stub for B.1 — real fetch to POST /chat lands in B.2.
-    setTimeout(() => {
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, session_id: sessionId }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Backend returned ${res.status}`)
+      }
+
+      const data = await res.json()
+      setSessionId(data.session_id)
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }])
+    } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
-          role: 'assistant',
-          content: `This is a placeholder reply. Backend wiring lands in Phase B.2.\n\n(session: \`${sessionId}\`)`,
+          role: 'error',
+          content:
+            'Could not reach the backend. Make sure the API server is running (uvicorn backend.main:app --port 8000) and try again.',
         },
       ])
+    } finally {
       setIsLoading(false)
-    }, 800)
+    }
   }
 
   return (
@@ -30,7 +49,11 @@ function App() {
       <header className="app-header">
         <h1>Airport Investment Intelligence Agent</h1>
       </header>
+      <AssumptionsPanel />
       <MessageList messages={messages} isLoading={isLoading} />
+      {messages.length === 0 && (
+        <SuggestedQuestions onSelect={handleSend} disabled={isLoading} />
+      )}
       <MessageInput onSend={handleSend} isLoading={isLoading} />
     </div>
   )

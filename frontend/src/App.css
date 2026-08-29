@@ -60,6 +60,13 @@
   font-style: italic;
 }
 
+.message.error {
+  align-self: flex-start;
+  background: #fdecea;
+  border: 1px solid #f3b4ac;
+  color: #a12a1f;
+}
+
 .message-input-form {
   display: flex;
   gap: 8px;
@@ -87,5 +94,79 @@
 
 .message-input-form button:disabled {
   background: #a0a0a0;
+  cursor: not-allowed;
+}
+
+.assumptions-panel {
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.assumptions-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+}
+
+.assumptions-caret {
+  font-weight: 400;
+  color: #666;
+}
+
+.assumptions-list {
+  margin: 0;
+  padding: 0 20px 14px 36px;
+  font-size: 0.85rem;
+  color: #444;
+  line-height: 1.5;
+}
+
+.assumptions-list li {
+  margin-bottom: 6px;
+}
+
+.suggested-questions {
+  padding: 8px 20px 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.suggested-questions-label {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.suggested-questions-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  border: 1px solid #1a73e8;
+  border-radius: 16px;
+  background: #fff;
+  color: #1a73e8;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chip:hover:not(:disabled) {
+  background: #eaf2fe;
+}
+
+.chip:disabled {
+  border-color: #ccc;
+  color: #999;
   cursor: not-allowed;
 }
