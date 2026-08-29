@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import MessageList from './components/MessageList'
 import MessageInput from './components/MessageInput'
 import SuggestedQuestions from './components/SuggestedQuestions'
@@ -11,8 +11,11 @@ function App() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
+  const isSendingRef = useRef(false)
 
   async function handleSend(text) {
+    if (isSendingRef.current) return
+    isSendingRef.current = true
     setMessages((prev) => [...prev, { role: 'user', content: text }])
     setIsLoading(true)
 
@@ -41,6 +44,7 @@ function App() {
       ])
     } finally {
       setIsLoading(false)
+      isSendingRef.current = false
     }
   }
 

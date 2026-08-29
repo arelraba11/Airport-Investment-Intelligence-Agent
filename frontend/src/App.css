@@ -33,6 +33,33 @@
   padding: 10px 14px;
   border-radius: 10px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.message.assistant p,
+.message.assistant li {
+  white-space: normal;
+}
+
+.message table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.message th,
+.message td {
+  border: 1px solid #ccc;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.message pre {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .message p {
@@ -74,12 +101,16 @@
   border-top: 1px solid #e0e0e0;
 }
 
-.message-input-form input {
+.message-input-form textarea {
   flex: 1;
   padding: 10px 12px;
   font-size: 1rem;
+  font-family: inherit;
   border: 1px solid #ccc;
   border-radius: 6px;
+  resize: none;
+  max-height: 150px;
+  line-height: 1.4;
 }
 
 .message-input-form button {
