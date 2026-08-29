@@ -13,6 +13,7 @@ turned into a 500 by main.py. See PLAN.md section A.3 for the full spec.
 import json
 
 import anthropic
+from anthropic.types import ContentBlock
 from dotenv import load_dotenv
 
 from backend import sessions
@@ -181,7 +182,8 @@ def _execute_tool(name: str, tool_input: dict) -> tuple[str, bool]:
         return f"Unexpected error calling {name}: {exc}", True
 
 
-def _extract_text(content_blocks) -> str:
+def _extract_text(content_blocks: list[ContentBlock]) -> str:
+    """Concatenate the text of every text block, ignoring tool_use/other block types."""
     return "".join(block.text for block in content_blocks if block.type == "text")
 
 

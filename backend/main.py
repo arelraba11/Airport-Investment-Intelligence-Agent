@@ -46,12 +46,12 @@ def _count_airports() -> int:
 
 
 @app.get("/health")
-def health():
+def health() -> dict:
     return {"status": "ok", "airports_loaded": _count_airports()}
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(request: ChatRequest) -> ChatResponse:
     session_id = request.session_id or str(uuid.uuid4())
 
     reply = run_agent_turn(session_id, request.message)

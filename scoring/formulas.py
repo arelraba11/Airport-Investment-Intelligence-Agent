@@ -15,16 +15,18 @@ component onto the same 0-100 scale is what makes WEIGHTS actually control
 each component's influence, rather than being decorative.
 """
 
+from typing import Callable
+
 import pandas as pd
 
 from scoring.weights import RUNWAY_CAPACITY_PER_YEAR, WEIGHTS
 
 
-def _is_missing(value) -> bool:
+def _is_missing(value: object) -> bool:
     return value is None or pd.isna(value)
 
 
-def _raw_congestion_ratio(airport) -> float | None:
+def _raw_congestion_ratio(airport: pd.Series) -> float | None:
     """Fraction of estimated annual runway capacity consumed by departures,
     capped at 1.0. Not itself the congestion_score — see module docstring —
     but exposed for human-readable explanations (e.g. "~18% of capacity").
@@ -41,7 +43,7 @@ def _raw_congestion_ratio(airport) -> float | None:
     return min(departures / capacity, 1.0)
 
 
-def _raw_cagr(airport) -> float | None:
+def _raw_cagr(airport: pd.Series) -> float | None:
     cy22 = airport["enplanements_cy22"]
     cy24 = airport["enplanements_cy24"]
     if _is_missing(cy22) or cy22 == 0 or _is_missing(cy24):
@@ -49,14 +51,19 @@ def _raw_cagr(airport) -> float | None:
     return (cy24 / cy22) ** (1 / 2) - 1
 
 
-def _raw_longhaul_share(airport) -> float | None:
+def _raw_longhaul_share(airport: pd.Series) -> float | None:
     value = airport["longhaul_share_pct"]
     if _is_missing(value):
         return None
     return float(value)
 
 
-def _percentile_rank(own_raw, raw_fn, airport, full_dataset) -> float | None:
+def _percentile_rank(
+    own_raw: float | None,
+    raw_fn: Callable[[pd.Series], float | None],
+    airport: pd.Series,
+    full_dataset: pd.DataFrame,
+) -> float | None:
     """Percentile rank of `own_raw` among `raw_fn` applied to every row of
     `full_dataset`, on a 0-100 scale. `airport` may be a modified copy of a
     dataset row (or not present in the index at all), so its own raw value
@@ -73,19 +80,19 @@ def _percentile_rank(own_raw, raw_fn, airport, full_dataset) -> float | None:
     return float(percentile.loc[key])
 
 
-def congestion_score(airport, full_dataset) -> float | None:
+def congestion_score(airport: pd.Series, full_dataset: pd.DataFrame) -> float | None:
     return _percentile_rank(_raw_congestion_ratio(airport), _raw_congestion_ratio, airport, full_dataset)
 
 
-def growth_score(airport, full_dataset) -> float | None:
+def growth_score(airport: pd.Series, full_dataset: pd.DataFrame) -> float | None:
     return _percentile_rank(_raw_cagr(airport), _raw_cagr, airport, full_dataset)
 
 
-def longhaul_mix_score(airport, full_dataset) -> float | None:
+def longhaul_mix_score(airport: pd.Series, full_dataset: pd.DataFrame) -> float | None:
     return _percentile_rank(_raw_longhaul_share(airport), _raw_longhaul_share, airport, full_dataset)
 
 
-def unmet_demand_score(airport, full_dataset) -> float | None:
+def unmet_demand_score(airport: pd.Series, full_dataset: pd.DataFrame) -> float | None:
     """Heuristic, not a measured quantity: high growth combined with high
     congestion suggests demand is outrunning available capacity. There is no
     real "unmet demand" field in any source data.
@@ -97,7 +104,7 @@ def unmet_demand_score(airport, full_dataset) -> float | None:
     return g * 0.6 + c * 0.4
 
 
-def investment_score(airport, full_dataset) -> dict:
+def investment_score(airport: pd.Series, full_dataset: pd.DataFrame) -> dict:
     components = {
         "congestion": congestion_score(airport, full_dataset),
         "growth": growth_score(airport, full_dataset),

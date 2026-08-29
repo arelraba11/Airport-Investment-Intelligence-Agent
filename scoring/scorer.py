@@ -4,6 +4,8 @@ compare them side by side. No LLM calls here either — pure pandas/Python.
 
 from functools import lru_cache
 
+import pandas as pd
+
 from scoring.data_loader import load_dataset
 from scoring.formulas import investment_score
 from scoring.weights import REGIONS
@@ -31,11 +33,15 @@ class AirportNotFoundError(Exception):
 
 
 @lru_cache(maxsize=1)
-def _dataset():
+def _dataset() -> pd.DataFrame:
     return load_dataset()
 
 
 def score_airport(iata: str) -> dict:
+    """Compute the investment_score breakdown for one in-scope airport.
+
+    Raises AirportNotFoundError if `iata` isn't in the dataset.
+    """
     dataset = _dataset()
     if iata not in dataset.index:
         raise AirportNotFoundError(f"Unknown IATA code: {iata!r}")
@@ -53,6 +59,12 @@ def rank_airports(
     iata_list: list[str] | None = None,
     top_n: int = 10,
 ) -> list[dict]:
+    """Rank airports by investment_score, descending (None scores sorted last).
+
+    Scopes candidates to `iata_list` if given, else to `region` (a key of
+    scoring.weights.REGIONS) if given, else to every in-scope airport.
+    Returns at most `top_n` results, each with a "rank" field (1-based).
+    """
     dataset = _dataset()
 
     if iata_list is not None:
@@ -75,6 +87,11 @@ def rank_airports(
 
 
 def compare_airports(iata_list: list[str]) -> dict:
+    """Score each of 2+ airports and attach RAW_METRIC_COLUMNS for side-by-side display.
+
+    Returns a dict keyed by IATA code. Raises ValueError if fewer than 2
+    codes are given.
+    """
     if len(iata_list) < 2:
         raise ValueError("compare_airports requires at least 2 IATA codes")
 
