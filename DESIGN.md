@@ -96,6 +96,5 @@ All 7 of Phase A.5's end-to-end test conversations were audited this way: every 
 - International passenger data isn't included — domestic-only sources (FAA/BTS).
 - Runway capacity is uniform (230K/runway/year) — not adjusted for runway length, configuration, or weather.
 - No construction/capital cost data — the score reflects demand pressure, not build feasibility.
-- `resolve_airport` doesn't robustly handle long-form queries (e.g. "Boston Logan airport" fails where "Boston" succeeds) — known narrow-scope gap, not hit by any of the 4 assignment questions.
 - `CITY_BY_IATA` is manually maintained, not sourced from canonical data.
 - Unmet demand is a heuristic proxy, not a measured quantity (see Tradeoffs).
