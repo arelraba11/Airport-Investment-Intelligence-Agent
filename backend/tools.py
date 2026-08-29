@@ -16,6 +16,7 @@ collisions (PDX vs PWM, both "Portland"; IAD vs DCA, both "Washington").
 """
 
 import difflib
+import re
 import time
 from functools import lru_cache
 from typing import Optional
@@ -84,6 +85,12 @@ ALIASES: dict[str, str] = {
 _FUZZY_MIN_RATIO = 0.55
 _FUZZY_CONFIDENCE_MARGIN = 0.15
 
+# Descriptive suffix words that don't help identify a specific airport (e.g.
+# "Boston Logan airport" vs. just "Boston") and only dilute the fuzzy-match
+# ratio against short city names. Stripped as a fallback pass, not from the
+# query the user actually sees applied first — see resolve_airport.
+_NOISE_WORDS = re.compile(r"\b(airport|international|regional|intl)\b", re.IGNORECASE)
+
 _BBOX_DEGREES = 0.15  # ~15km bounding box around the airport for OpenSky queries
 _TRAFFIC_CACHE_TTL_SECONDS = 600  # 10 minutes
 _traffic_cache: dict[str, tuple[float, dict]] = {}
@@ -119,27 +126,16 @@ def _normalize_region(region: str) -> str:
     return key
 
 
-def resolve_airport(query: str) -> dict:
-    """Resolve a free-text airport reference to an in-scope IATA code.
+def _strip_noise_words(query: str) -> str:
+    """Drop descriptive suffix words (see _NOISE_WORDS) and collapse whitespace."""
+    return re.sub(r"\s+", " ", _NOISE_WORDS.sub("", query)).strip()
 
-    Tries, in order: exact IATA code, the informal-alias table, an exact
-    case-insensitive match on city/name, then fuzzy matching on city/name.
-    Returns one of:
-      - {"iata", "name", "city"} for a single confident match
-      - {"ambiguous": True, "candidates": [...]} when multiple airports are
-        equally plausible (e.g. "Portland" -> PDX and PWM)
-      - {"not_found": True, "in_scope": False} when nothing plausible matches
-        within the 80-airport scope
+
+def _match_query(query: str, dataset: pd.DataFrame) -> Optional[dict]:
+    """Try to resolve `query` against `dataset`, trying alias/exact/fuzzy in
+    order. Returns None (not a not_found dict) if nothing plausible matched,
+    so callers can retry with a different form of the query before giving up.
     """
-    dataset = _dataset()
-    query = query.strip()
-    if not query:
-        return {"not_found": True, "in_scope": False}
-
-    q_upper = query.upper()
-    if q_upper in dataset.index:
-        return _airport_summary(q_upper, dataset)
-
     q_lower = query.lower()
     if q_lower in ALIASES:
         return _airport_summary(ALIASES[q_lower], dataset)
@@ -170,7 +166,7 @@ def resolve_airport(query: str) -> dict:
 
     plausible = [(ratio, iata) for ratio, iata in scored if ratio >= _FUZZY_MIN_RATIO]
     if not plausible:
-        return {"not_found": True, "in_scope": False}
+        return None
 
     if len(plausible) == 1:
         return _airport_summary(plausible[0][1], dataset)
@@ -181,6 +177,45 @@ def resolve_airport(query: str) -> dict:
 
     candidates = [iata for _, iata in plausible[:5]]
     return {"ambiguous": True, "candidates": [_airport_summary(i, dataset) for i in candidates]}
+
+
+def resolve_airport(query: str) -> dict:
+    """Resolve a free-text airport reference to an in-scope IATA code.
+
+    Tries, in order: exact IATA code, the informal-alias table, an exact
+    case-insensitive match on city/name, then fuzzy matching on city/name. If
+    none of those match, retries the same pipeline once more with common
+    descriptive noise words (e.g. "airport", "international") stripped from
+    the query — this handles longer free-text phrases like "Boston Logan
+    airport" that would otherwise dilute the fuzzy-match ratio against a
+    short city name like "Boston".
+    Returns one of:
+      - {"iata", "name", "city"} for a single confident match
+      - {"ambiguous": True, "candidates": [...]} when multiple airports are
+        equally plausible (e.g. "Portland" -> PDX and PWM)
+      - {"not_found": True, "in_scope": False} when nothing plausible matches
+        within the 80-airport scope
+    """
+    dataset = _dataset()
+    query = query.strip()
+    if not query:
+        return {"not_found": True, "in_scope": False}
+
+    q_upper = query.upper()
+    if q_upper in dataset.index:
+        return _airport_summary(q_upper, dataset)
+
+    result = _match_query(query, dataset)
+    if result is not None:
+        return result
+
+    cleaned = _strip_noise_words(query)
+    if cleaned and cleaned.lower() != query.lower():
+        result = _match_query(cleaned, dataset)
+        if result is not None:
+            return result
+
+    return {"not_found": True, "in_scope": False}
 
 
 def get_airport_profile(iata: str) -> dict:
