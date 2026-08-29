@@ -1,8 +1,10 @@
 """FastAPI app: POST /chat and GET /health.
 
-Phase A.1 (Backend Skeleton) only — /chat currently echoes the message back
-and stores the exchange in session history. The real tool-use agent loop
-(agent.py, Phase A.3) is wired in later.
+/chat runs the full tool-use agent loop (agent.py, Phase A.3) over the
+session's message history. Any exception raised by the Anthropic API call
+itself (as opposed to a tool call, which agent.py already catches and
+recovers from) propagates here as a 500 — that's an unexpected failure,
+not a normal conversational path.
 """
 
 import csv
@@ -14,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from backend import sessions
+from backend.agent import run_agent_turn
 
 DATASET_PATH = Path(__file__).resolve().parent.parent / "data" / "airports_dataset.csv"
 
@@ -52,8 +54,6 @@ def health():
 def chat(request: ChatRequest):
     session_id = request.session_id or str(uuid.uuid4())
 
-    sessions.append_message(session_id, "user", request.message)
-    reply = f"Echo: {request.message}"
-    sessions.append_message(session_id, "assistant", reply)
+    reply = run_agent_turn(session_id, request.message)
 
     return ChatResponse(reply=reply, session_id=session_id)
