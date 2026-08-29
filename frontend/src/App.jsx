@@ -27,7 +27,14 @@ function App() {
       })
 
       if (!res.ok) {
-        throw new Error(`Backend returned ${res.status}`)
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'error',
+            content: `The backend returned an error (HTTP ${res.status}) — check the server logs (a missing or invalid ANTHROPIC_API_KEY is a common cause).`,
+          },
+        ])
+        return
       }
 
       const data = await res.json()

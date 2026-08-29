@@ -3,17 +3,22 @@
 /chat runs the full tool-use agent loop (agent.py, Phase A.3) over the
 session's message history. Any exception raised by the Anthropic API call
 itself (as opposed to a tool call, which agent.py already catches and
-recovers from) propagates here as a 500 — that's an unexpected failure,
-not a normal conversational path.
+recovers from) is an unexpected failure, not a normal conversational path —
+it is returned as an explicit JSON 500 (with the traceback logged) rather
+than left to propagate, because a raised exception would bypass the CORS
+middleware and reach the browser as an unreadable opaque failure instead
+of a distinguishable server error.
 """
 
 import csv
+import logging
 import uuid
 from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.agent import run_agent_turn
@@ -54,6 +59,15 @@ def health() -> dict:
 def chat(request: ChatRequest) -> ChatResponse:
     session_id = request.session_id or str(uuid.uuid4())
 
-    reply = run_agent_turn(session_id, request.message)
+    try:
+        reply = run_agent_turn(session_id, request.message)
+    except Exception:
+        # See module docstring: return the 500 explicitly so it passes
+        # through the CORS middleware and the browser can read the status.
+        logging.getLogger("uvicorn.error").exception("Agent turn failed")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Agent request failed — see server logs."},
+        )
 
     return ChatResponse(reply=reply, session_id=session_id)
