@@ -2,12 +2,18 @@
 
 Usage:
     python rank_airports.py --region new_england
+    python rank_airports.py --region "New England"     # same thing
     python rank_airports.py --iata BOS,BDL,PVD
+
+--region is matched case- and spacing-insensitively via
+scoring.weights.normalize_region, the same function the agent's tool layer
+uses, so the CLI and the chat agent accept exactly the same region spellings.
 """
 
 import sys
 
 from scoring.scorer import rank_airports
+from scoring.weights import normalize_region
 
 
 def _fmt(value) -> str:
@@ -28,7 +34,8 @@ def print_table(results: list[dict]) -> None:
         )
 
 
-def main(argv: list[str]) -> None:
+def main(argv: list[str]) -> int:
+    """Returns a process exit code: 0 on success, 2 on a bad --region."""
     region = None
     iata_list = None
 
@@ -38,10 +45,21 @@ def main(argv: list[str]) -> None:
         elif arg == "--iata" and i + 1 < len(argv):
             iata_list = argv[i + 1].split(",")
 
+    if region is not None:
+        try:
+            region = normalize_region(region)
+        except ValueError as exc:
+            # A bad region name is user error, not a crash — report it the way
+            # a CLI should rather than letting the KeyError from REGIONS[...]
+            # surface as a traceback.
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
     top_n = len(iata_list) if iata_list else 10
     results = rank_airports(region=region, iata_list=iata_list, top_n=top_n)
     print_table(results)
+    return 0
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))

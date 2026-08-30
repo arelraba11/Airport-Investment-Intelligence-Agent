@@ -15,3 +15,19 @@ LONGHAUL_THRESHOLD_MILES = 2500  # already applied upstream when building longha
 REGIONS = {
     "new_england": {"ME", "NH", "VT", "MA", "RI", "CT"},
 }
+
+
+def normalize_region(region: str) -> str:
+    """Map a free-text region name onto a REGIONS key, e.g. "New England"
+    -> "new_england". Raises ValueError naming the valid regions if there's
+    no match.
+
+    Lives here, next to REGIONS itself, because the keys it has to match are
+    defined here — and because both callers (backend.tools for the agent, and
+    rank_airports.py for the CLI) need it, while neither should have to
+    import the other.
+    """
+    key = region.strip().lower().replace(" ", "_").replace("-", "_")
+    if key not in REGIONS:
+        raise ValueError(f"Unknown region: {region!r}. Known regions: {sorted(REGIONS)}")
+    return key

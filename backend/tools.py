@@ -26,7 +26,7 @@ import requests
 
 from scoring import scorer
 from scoring.data_loader import load_dataset
-from scoring.weights import REGIONS
+from scoring.weights import normalize_region
 
 # --- Informal-name lookup tables (hand-built from the 80 in-scope airports) ---
 
@@ -117,13 +117,6 @@ def _airport_summary(iata: str, dataset: pd.DataFrame) -> dict:
         "name": str(row["name"]),
         "city": CITY_BY_IATA.get(iata, str(row["name"])),
     }
-
-
-def _normalize_region(region: str) -> str:
-    key = region.strip().lower().replace(" ", "_").replace("-", "_")
-    if key not in REGIONS:
-        raise ValueError(f"Unknown region: {region!r}. Known regions: {sorted(REGIONS)}")
-    return key
 
 
 def _strip_noise_words(query: str) -> str:
@@ -302,7 +295,7 @@ def rank_airports(
     `region` is matched case/spacing-insensitively against scoring.weights.REGIONS
     (e.g. "New England" -> "new_england"). Raises ValueError for an unknown region.
     """
-    region_key = _normalize_region(region) if region else None
+    region_key = normalize_region(region) if region else None
     codes = [code.strip().upper() for code in iata_list] if iata_list else None
     return scorer.rank_airports(region=region_key, iata_list=codes, top_n=top_n)
 
