@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from backend.agent import run_agent_turn
 
@@ -61,6 +61,28 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+
+    @field_validator("message")
+    @classmethod
+    def _reject_blank_message(cls, value: str) -> str:
+        """Reject a message that is empty or only whitespace.
+
+        The Anthropic API rejects an empty user turn outright ("user messages
+        must have non-empty content"), which would surface as an opaque 500
+        from the agent loop. Catching it here instead turns it into the same
+        structured 422 that FastAPI already returns for malformed bodies.
+
+        The UI cannot send this (MessageInput.jsx guards on the trimmed value
+        before calling onSend), so this is a boundary safety net for direct
+        API callers — curl, scripts, a future client — not a duplicate of the
+        frontend check.
+
+        Only fully-blank input is rejected: the value is returned unchanged,
+        so a message padded with whitespace around real content is untouched.
+        """
+        if not value.strip():
+            raise ValueError("message must not be empty or whitespace-only")
+        return value
 
 
 class ChatResponse(BaseModel):
