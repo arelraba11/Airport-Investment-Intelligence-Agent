@@ -5,7 +5,11 @@ import SuggestedQuestions from './components/SuggestedQuestions'
 import AssumptionsPanel from './components/AssumptionsPanel'
 import './App.css'
 
-const CHAT_URL = 'http://localhost:8000/chat'
+// Overridable for demos from another machine or network — see
+// frontend/.env.example. Vite inlines this at build time, so a change needs a
+// dev-server restart or a rebuild. The fallback keeps local dev working with
+// no .env present.
+const CHAT_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/chat'
 
 function App() {
   const [messages, setMessages] = useState([])

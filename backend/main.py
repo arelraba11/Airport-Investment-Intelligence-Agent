@@ -12,6 +12,7 @@ of a distinguishable server error.
 
 import csv
 import logging
+import os
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -25,11 +26,33 @@ from backend.agent import run_agent_turn
 
 DATASET_PATH = Path(__file__).resolve().parent.parent / "data" / "airports_dataset.csv"
 
+# The Vite dev server origin — the only origin needed for local development,
+# so the app runs unconfigured out of the box.
+DEFAULT_CORS_ORIGINS = "http://localhost:5173"
+
+
+def _cors_origins() -> list[str]:
+    """Browser origins allowed to call this API, from $CORS_ORIGINS.
+
+    Comma-separated, e.g. "http://localhost:5173,http://192.168.1.50:5173".
+    Falls back to the Vite dev origin when unset or blank. Reads the
+    environment directly rather than loading dotenv again: importing
+    backend.agent above already ran load_dotenv(), which is what puts a
+    root .env into os.environ before this is called.
+    """
+    raw = os.getenv("CORS_ORIGINS") or DEFAULT_CORS_ORIGINS
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    # A value that parses to nothing (blank, or just commas/spaces) would
+    # otherwise allow no origin at all — fall back rather than silently
+    # breaking every browser request.
+    return origins or [DEFAULT_CORS_ORIGINS]
+
+
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
