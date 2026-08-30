@@ -1,8 +1,15 @@
-pandas
-fastapi
-uvicorn
-anthropic
-python-dotenv
-pytest
-openpyxl
-requests
+# Direct dependencies only, pinned to the versions this project was built and
+# verified against. Transitive dependencies are intentionally not pinned here
+# (pip resolves them); regenerate a pin by checking `pip freeze`.
+pandas==3.0.5
+fastapi==0.141.1
+uvicorn==0.52.4
+anthropic==1.1.0
+python-dotenv==1.2.3
+pytest==9.1.1
+openpyxl==3.1.5
+requests==2.34.2
+# Imported directly by backend/main.py (ChatRequest/ChatResponse models and the
+# blank-message validator) — previously present only as a transitive dep of
+# fastapi, so it is declared explicitly rather than relied on by accident.
+pydantic==2.13.4
