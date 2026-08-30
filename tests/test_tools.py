@@ -66,3 +66,67 @@ def test_resolve_airport_portland_still_ambiguous():
     assert result.get("ambiguous") is True
     candidates = {c["iata"] for c in result["candidates"]}
     assert candidates == {"PDX", "PWM"}
+
+
+def test_resolve_airport_out_of_scope_city_is_not_a_confident_match():
+    """Live-QA bug: "Bar Harbor" resolved confidently to BDL (Bradley
+    International, Hartford CT). "bar harbor" vs. the city "Hartford" scores
+    0.5556 on SequenceMatcher — bare shared characters (a, r, h, o), no shared
+    word — which cleared _FUZZY_MIN_RATIO as the *only* plausible candidate,
+    so the confidence-margin check was skipped entirely.
+
+    Bar Harbor's real airport (BHB) is genuinely out of scope, so the honest
+    answer is not_found: a confident match to an unrelated airport in another
+    state is worse than admitting the scope boundary.
+    """
+    assert resolve_airport("Bar Harbor") == {"not_found": True, "in_scope": False}
+
+
+def test_resolve_airport_near_miss_city_name_is_not_a_confident_match():
+    """The case that proves this is not fixable by raising the threshold:
+    "Asheville" scores 0.8889 against "Nashville" — higher than almost every
+    *legitimate* fuzzy match in the dataset (most sit at 0.55-0.65). Character
+    similarity alone cannot separate a real match from a different city that
+    happens to be spelled similarly; only requiring a shared whole word can.
+    """
+    assert resolve_airport("Asheville") == {"not_found": True, "in_scope": False}
+    assert resolve_airport("Fresno") == {"not_found": True, "in_scope": False}
+
+
+def test_resolve_airport_shared_generic_word_is_not_enough():
+    """A single shared word must not carry a match on its own. "Santa Barbara"
+    shares "Santa" with Santa Ana (SNA) and "Rapid City" shares "City" with
+    Kansas City (MCI), but the remaining word is unaccounted for in both, so
+    neither is a real reference to an in-scope airport.
+    """
+    assert resolve_airport("Santa Barbara") == {"not_found": True, "in_scope": False}
+    assert resolve_airport("Rapid City") == {"not_found": True, "in_scope": False}
+
+
+def test_resolve_airport_invented_place_names_are_not_found():
+    """Made-up names used to land confident matches purely on character
+    overlap ("Blorptown" -> BOS, "Grand Fenwick" -> GRR, "Nowhere City" -> OKC).
+    """
+    for query in ("Blorptown", "Grand Fenwick", "Nowhere City", "Zzyzx"):
+        assert resolve_airport(query) == {"not_found": True, "in_scope": False}, query
+
+
+def test_resolve_airport_out_of_scope_non_us_airport():
+    """No regression: a well-known airport outside the US scope stays out."""
+    assert resolve_airport("Heathrow") == {"not_found": True, "in_scope": False}
+    assert resolve_airport("Nantucket") == {"not_found": True, "in_scope": False}
+
+
+def test_resolve_airport_alias_beats_unrelated_fuzzy_match():
+    """"sf airport" used to resolve to SRQ (Sarasota) on a 0.5556 character
+    match, beating the "sf" -> SFO alias that the noise-word retry would have
+    found. Rejecting the unanchored fuzzy match lets the retry reach the alias.
+    """
+    assert resolve_airport("sf airport").get("iata") == "SFO"
+
+
+def test_resolve_airport_tolerates_a_single_character_typo():
+    """The word-level gate must still allow a mistyped word through: matching
+    is per-word and fuzzy, not exact string equality."""
+    assert resolve_airport("Bostn").get("iata") == "BOS"
+    assert resolve_airport("Anchorag").get("iata") == "ANC"

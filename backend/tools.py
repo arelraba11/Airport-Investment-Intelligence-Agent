@@ -85,6 +85,13 @@ ALIASES: dict[str, str] = {
 _FUZZY_MIN_RATIO = 0.55
 _FUZZY_CONFIDENCE_MARGIN = 0.15
 
+# Word-level gate applied *before* those ratios (see _is_anchored). A query
+# word counts as accounted for by a candidate word when it matches exactly or
+# at least this closely — tight enough to admit a one-character typo
+# ("bostn"/"boston" = 0.91) while rejecting distinct place names that merely
+# look alike ("asheville"/"nashville" = 0.89).
+_TOKEN_MIN_RATIO = 0.9
+
 # Descriptive suffix words that don't help identify a specific airport (e.g.
 # "Boston Logan airport" vs. just "Boston") and only dilute the fuzzy-match
 # ratio against short city names. Stripped as a fallback pass, not from the
@@ -128,6 +135,43 @@ def _identity(text: str) -> str:
     return text
 
 
+_TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
+
+
+def _tokens(text: str) -> set[str]:
+    """Split text into a set of lowercase words, dropping noise words."""
+    return {t for t in _TOKEN_SPLIT.split(_NOISE_WORDS.sub(" ", text.lower())) if t}
+
+
+def _is_anchored(query_tokens: set[str], candidate_tokens: set[str]) -> bool:
+    """True when *every* word of the query is accounted for by a word of the
+    candidate's city/name — exactly, or within _TOKEN_MIN_RATIO of one.
+
+    This is the gate that keeps character-level similarity from standing in
+    for a real name match. difflib's ratio is computed over whole strings, so
+    two unrelated short place names routinely score as high as a genuine
+    match: "bar harbor"/"Hartford" scores 0.56 and "Asheville"/"Nashville"
+    scores 0.89, against legitimate matches that mostly sit at 0.55-0.65. No
+    threshold can separate those populations, because they overlap completely
+    — but a shared *word* can, and every legitimate match has one (a query is
+    normally a city, an airport name, or one of those plus noise words).
+
+    Requiring *all* query words rather than any one of them is what stops a
+    single generic word from carrying an unrelated query: "Santa Barbara"
+    shares "santa" with Santa Ana and "Rapid City" shares "city" with Kansas
+    City, but "barbara" and "rapid" match nothing in scope.
+    """
+    if not query_tokens:
+        return False
+    return all(
+        any(
+            q == c or difflib.SequenceMatcher(None, q, c).ratio() >= _TOKEN_MIN_RATIO
+            for c in candidate_tokens
+        )
+        for q in query_tokens
+    )
+
+
 def _match_query(
     query: str, dataset: pd.DataFrame, normalize=_identity
 ) -> Optional[dict]:
@@ -159,10 +203,13 @@ def _match_query(
     if len(exact_matches) > 1:
         return {"ambiguous": True, "candidates": [_airport_summary(i, dataset) for i in exact_matches]}
 
+    q_tokens = _tokens(query)
     scored = []
     for iata in dataset.index:
         city = normalize(CITY_BY_IATA.get(iata, ""))
         name = normalize(str(dataset.loc[iata, "name"]))
+        if not _is_anchored(q_tokens, _tokens(city) | _tokens(name)):
+            continue
         ratio = max(
             difflib.SequenceMatcher(None, q_lower, city.lower()).ratio(),
             difflib.SequenceMatcher(None, q_lower, name.lower()).ratio(),
