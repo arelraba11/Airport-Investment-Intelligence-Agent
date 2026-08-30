@@ -28,6 +28,10 @@ cp .env.example .env
 # then edit .env: ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+The key is the only value you need to set. `.env.example` also carries `CORS_ORIGINS`, which is
+optional — left as-is, removed, or unset, the backend defaults to `http://localhost:5173` (the Vite
+dev server origin), and it only needs changing if you serve the frontend from a different origin.
+
 `backend/agent.py` loads this via `python-dotenv`'s `load_dotenv()`, which resolves relative to the
 current working directory — so run `uvicorn` from the repo root (as in step 4 below) for the key to
 be picked up automatically.
