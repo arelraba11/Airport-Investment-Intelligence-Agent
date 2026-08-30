@@ -131,10 +131,23 @@ def _strip_noise_words(query: str) -> str:
     return re.sub(r"\s+", " ", _NOISE_WORDS.sub("", query)).strip()
 
 
-def _match_query(query: str, dataset: pd.DataFrame) -> Optional[dict]:
+def _identity(text: str) -> str:
+    return text
+
+
+def _match_query(
+    query: str, dataset: pd.DataFrame, normalize=_identity
+) -> Optional[dict]:
     """Try to resolve `query` against `dataset`, trying alias/exact/fuzzy in
     order. Returns None (not a not_found dict) if nothing plausible matched,
     so callers can retry with a different form of the query before giving up.
+
+    `normalize` is applied to each candidate's city/name before comparing.
+    The default leaves them untouched; resolve_airport's retry pass passes
+    _strip_noise_words so a noise-stripped query is compared against equally
+    stripped candidates (signal against signal) rather than against full
+    names — otherwise stripping "International" out of the query alone turns
+    "Bradley International" into a weak partial match instead of an exact one.
     """
     q_lower = query.lower()
     if q_lower in ALIASES:
@@ -144,8 +157,8 @@ def _match_query(query: str, dataset: pd.DataFrame) -> Optional[dict]:
         {
             iata
             for iata in dataset.index
-            if q_lower == CITY_BY_IATA.get(iata, "").lower()
-            or q_lower == str(dataset.loc[iata, "name"]).lower()
+            if q_lower == normalize(CITY_BY_IATA.get(iata, "")).lower()
+            or q_lower == normalize(str(dataset.loc[iata, "name"])).lower()
         }
     )
     if len(exact_matches) == 1:
@@ -155,8 +168,8 @@ def _match_query(query: str, dataset: pd.DataFrame) -> Optional[dict]:
 
     scored = []
     for iata in dataset.index:
-        city = CITY_BY_IATA.get(iata, "")
-        name = str(dataset.loc[iata, "name"])
+        city = normalize(CITY_BY_IATA.get(iata, ""))
+        name = normalize(str(dataset.loc[iata, "name"]))
         ratio = max(
             difflib.SequenceMatcher(None, q_lower, city.lower()).ratio(),
             difflib.SequenceMatcher(None, q_lower, name.lower()).ratio(),
@@ -183,12 +196,32 @@ def resolve_airport(query: str) -> dict:
     """Resolve a free-text airport reference to an in-scope IATA code.
 
     Tries, in order: exact IATA code, the informal-alias table, an exact
-    case-insensitive match on city/name, then fuzzy matching on city/name. If
-    none of those match, retries the same pipeline once more with common
-    descriptive noise words (e.g. "airport", "international") stripped from
-    the query — this handles longer free-text phrases like "Boston Logan
-    airport" that would otherwise dilute the fuzzy-match ratio against a
-    short city name like "Boston".
+    case-insensitive match on city/name, then fuzzy matching on city/name.
+
+    If that first pass fails to land a single confident match — either because
+    nothing was plausible at all, *or* because it came back ambiguous — the
+    pipeline is retried once with common descriptive noise words (e.g.
+    "airport", "international") stripped. Both failure modes need the retry:
+    noise words don't just dilute the fuzzy ratio against a short city name
+    ("Boston Logan airport" vs. "Boston"), they actively pull a long phrase
+    toward every unrelated "... International" in the dataset, so "Boston
+    Logan International Airport" comes back ambiguous over candidates that
+    don't include BOS at all.
+
+    The retry strips both sides — query *and* candidate city/name — so it
+    compares signal against signal. Stripping only the query would be worse
+    than useless where a noise word is genuinely part of an airport's name:
+    "Bradley International Airport" reduced to "Bradley" is a weak 0.57 match
+    against the full name "Bradley International" (weak enough that an
+    unrelated airport wins on noise), but an exact 1.0 match once the
+    candidate is reduced to "Bradley" too.
+
+    The retry is only consulted when it produces a *confident* match; if it is
+    itself ambiguous or empty, the original first-pass result stands, so a
+    genuine collision like "Portland" (PDX vs. PWM) is never resolved away by
+    the fallback. A query containing no noise words is unchanged by stripping
+    and skips the retry entirely.
+
     Returns one of:
       - {"iata", "name", "city"} for a single confident match
       - {"ambiguous": True, "candidates": [...]} when multiple airports are
@@ -206,14 +239,26 @@ def resolve_airport(query: str) -> dict:
         return _airport_summary(q_upper, dataset)
 
     result = _match_query(query, dataset)
-    if result is not None:
+    if result is not None and not result.get("ambiguous"):
         return result
 
+    # Retry without noise words when the first pass found nothing OR was
+    # ambiguous — but only take the retry if it is confident, so a real
+    # collision falls back to the ambiguous result below rather than being
+    # silently resolved to one arbitrary candidate.
     cleaned = _strip_noise_words(query)
     if cleaned and cleaned.lower() != query.lower():
-        result = _match_query(cleaned, dataset)
-        if result is not None:
-            return result
+        retried = _match_query(cleaned, dataset, normalize=_strip_noise_words)
+        if retried is not None and not retried.get("ambiguous"):
+            return retried
+        # An ambiguous retry never overrides a first-pass result (see above),
+        # but when the first pass found nothing at all there is nothing to
+        # preserve, and an ambiguous candidate list still beats not_found.
+        if result is None and retried is not None:
+            return retried
+
+    if result is not None:
+        return result
 
     return {"not_found": True, "in_scope": False}
 

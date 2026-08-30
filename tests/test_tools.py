@@ -11,6 +11,41 @@ def test_resolve_airport_long_form_query_strips_noise_words():
     assert result.get("iata") == "BOS"
 
 
+def test_resolve_airport_noisy_query_prefers_confident_stripped_match():
+    """A noisy phrase can come back *ambiguous* rather than empty: "Santa Ana
+    airport" fuzzy-matches SNA and SAT because "airport" dilutes the ratio
+    toward San Antonio. The noise-word retry must run on the ambiguous path
+    too, not only the not-found path, since "Santa Ana" alone is confident.
+
+    This is required example question #2 ("Compare LA and Santa Ana airport
+    congestion levels"), so an unnecessary disambiguation turn here is a
+    user-visible regression.
+    """
+    result = resolve_airport("Santa Ana airport")
+    assert result.get("iata") == "SNA"
+
+
+def test_resolve_airport_long_noisy_query_not_pulled_to_wrong_candidates():
+    """"International" pulls a long phrase toward every unrelated
+    "... International" in the dataset: "Boston Logan International Airport"
+    used to return ambiguous across PWM/PDX/MCO/RSW/LAX — a candidate list
+    that didn't even contain BOS. Stripping the noise words resolves it.
+    """
+    result = resolve_airport("Boston Logan International Airport")
+    assert result.get("iata") == "BOS"
+
+
+def test_resolve_airport_noise_word_inside_real_airport_name():
+    """The retry must strip noise words from the candidate names too, not just
+    the query. "International" is genuinely part of BDL's name ("Bradley
+    International"), so stripping one side only leaves "Bradley" as a weak
+    0.57 match against the full name — weak enough that an unrelated airport
+    wins on noise. Stripping both sides makes it an exact match.
+    """
+    result = resolve_airport("Bradley International Airport")
+    assert result.get("iata") == "BDL"
+
+
 def test_resolve_airport_short_city_name_still_resolves():
     """No regression: the short form this used to work through must still work."""
     result = resolve_airport("Anchorage")
