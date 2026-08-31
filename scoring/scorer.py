@@ -50,6 +50,9 @@ def score_airport(iata: str) -> dict:
     result = investment_score(airport, dataset)
     result["iata"] = iata
     result["name"] = airport["name"]
+    # The FAA enplanement vintage the growth component ends on, not a single
+    # vintage shared by every input: the BTS-derived congestion and long-haul
+    # figures come from a rolling 12-month segment file (Sep 2024 - Aug 2025).
     result["data_year"] = "CY24"
     return result
 

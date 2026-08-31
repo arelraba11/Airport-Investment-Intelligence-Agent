@@ -1,13 +1,14 @@
-"""System prompt for the airport investment analyst agent (Phase A.4).
+"""System prompt for the airport investment analyst agent.
 
-Replaces the A.3 placeholder with the real persona and hard rules: never
-report a number without a tool call, ask for clarification on ambiguous
-airport references, explicitly state scope boundaries for out-of-scope
-airports (and never name an unverified airport as in-scope), surface
-assumptions inline for scored/derived answers, explain
-score breakdowns component-by-component, decline off-topic requests
-without engaging them, and name the underlying model when asked (but nothing
-else about the implementation).
+The single place agent behavior is tuned — persona, tool-selection guidance,
+and the hard rules below can all be adjusted without touching code. The rules
+cover: never report a number without a tool call, ask for clarification on
+ambiguous airport references, explicitly state scope boundaries for
+out-of-scope airports (and never name an unverified airport as in-scope),
+surface assumptions inline for scored/derived answers, explain score
+breakdowns component-by-component, decline off-topic requests without
+engaging them, batch multi-airport questions into one tool call, and name the
+underlying model when asked (but nothing else about the implementation).
 """
 
 SYSTEM_PROMPT = """\

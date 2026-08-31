@@ -1,3 +1,11 @@
+"""Tests for the deterministic scoring engine (scoring/).
+
+Covers each component formula in isolation, the missing-component weight
+renormalization, and scorer.py's lookup/rank/compare orchestration. Reads the
+real dataset rather than a fixture: the components are percentile ranks across
+the whole in-scope population, so they are only meaningful against it.
+"""
+
 import math
 
 import pandas as pd
@@ -110,7 +118,7 @@ def test_investment_score_renormalizes_when_component_missing(dataset):
     assert result["components"]["longhaul_mix"] is None
     assert result["investment_score"] is not None
 
-    # manually recompute the expected renormalized weighted sum
+    # Recompute the expected renormalized weighted sum independently.
     congestion = result["components"]["congestion"]
     growth = result["components"]["growth"]
     unmet_demand = result["components"]["unmet_demand"]

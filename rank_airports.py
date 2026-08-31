@@ -49,12 +49,14 @@ def main(argv: list[str]) -> int:
         try:
             region = normalize_region(region)
         except ValueError as exc:
-            # A bad region name is user error, not a crash — report it the way
-            # a CLI should rather than letting the KeyError from REGIONS[...]
-            # surface as a traceback.
+            # A bad region name is user error, not a crash — report it the
+            # way a CLI should, rather than letting normalize_region's
+            # ValueError surface as an unhandled traceback.
             print(f"error: {exc}", file=sys.stderr)
             return 2
 
+    # An explicit --iata list is shown in full; only the open-ended region
+    # and all-airports cases are truncated to a default top 10.
     top_n = len(iata_list) if iata_list else 10
     results = rank_airports(region=region, iata_list=iata_list, top_n=top_n)
     print_table(results)

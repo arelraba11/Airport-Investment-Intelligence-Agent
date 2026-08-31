@@ -7,6 +7,7 @@ segment traffic into data/airports_dataset.csv.
 Run from the data/ directory:
     cd data && python build_dataset.py
 """
+
 import csv
 import os
 import urllib.request
@@ -38,6 +39,11 @@ NEW_ENGLAND_RANK_CUTOFF = 150
 # FAA Locid -> OurAirports `ident`, used as a fallback lookup for renamed airports.
 IATA_ALIASES = {"PBI": "KPBI"}
 
+# Column layout of the undocumented BTS T-100 .asc export. BTS publishes no
+# schema for this pipe-delimited form, so the 28 fields below were derived by
+# inspection and then validated against known great-circle distances on
+# well-known routes (JFK-LAX, BOS-LAX, ANC-SEA) — if a future BTS file shifts
+# its layout, those distances are the check that will catch it.
 BTS_FIELDS = [
     "YEAR", "MONTH", "ORIGIN", "ORIGIN_AIRPORT_ID", "ORIGIN_CITY_MARKET_ID", "ORIGIN_CITY_NAME",
     "DEST", "DEST_AIRPORT_ID", "DEST_CITY_MARKET_ID", "DEST_CITY_NAME", "UNIQUE_CARRIER", "AIRLINE_ID",
@@ -52,6 +58,9 @@ DISTANCE_IDX = BTS_FIELDS.index("DISTANCE_MILES")
 DEPARTURES_PERFORMED_IDX = BTS_FIELDS.index("DEPARTURES_PERFORMED")
 PASSENGERS_IDX = BTS_FIELDS.index("PASSENGERS")
 
+# Great-circle distance at or above which a route counts as long-haul. Applied
+# here, when longhaul_share_pct is computed, and never re-derived downstream;
+# scoring/weights.py restates it for traceability only.
 LONGHAUL_MILES = 2500
 
 
@@ -98,7 +107,12 @@ def load_faa_scope():
 
 
 def load_ourairports():
-    """Return (airports_df indexed by iata, ident_by_iata dict)."""
+    """Load airports.csv once and return everything downstream needs from it.
+
+    Returns (full dataframe, iata -> ident map, iata -> row map). The two maps
+    are built in a single pass because the runway join needs `ident` while the
+    scope join needs the row itself, and both are keyed on IATA code.
+    """
     airports_df = pd.read_csv(AIRPORTS_CSV, dtype=str, keep_default_na=False)
     ident_by_iata = {}
     row_by_iata = {}
@@ -115,6 +129,11 @@ def _to_int_or_blank(value):
 
 
 def resolve_ident(iata, ident_by_iata):
+    """Map an FAA Locid to the OurAirports `ident` used as the runway join key.
+
+    Falls back to IATA_ALIASES when OurAirports no longer carries the FAA's
+    code for an airport, so a rename upstream doesn't silently drop it.
+    """
     if iata in ident_by_iata:
         return ident_by_iata[iata]
     alias_ident = IATA_ALIASES.get(iata)
@@ -125,6 +144,8 @@ def resolve_ident(iata, ident_by_iata):
 
 def load_runway_stats(ourairports_df):
     runways_df = pd.read_csv(RUNWAYS_CSV, dtype=str, keep_default_na=False)
+    # Closed runways still appear in the source file; they contribute no
+    # capacity, so they must not inflate runway_count.
     runways_df = runways_df[runways_df["closed"] != "1"]
     runways_df["length_ft"] = pd.to_numeric(runways_df["length_ft"], errors="coerce")
     stats = runways_df.groupby("airport_ident").agg(
@@ -148,11 +169,19 @@ def stream_bts_aggregates(iata_codes):
         for line in f:
             total_lines += 1
             fields = line.rstrip("\n").split("|")
+            # Well-formedness guard against truncated or blank trailing
+            # lines. Comfortably above the highest index read below
+            # (PASSENGERS, 22) without demanding a full 28 fields, so a row
+            # with a missing optional tail field is still counted.
             if len(fields) < 27:
                 continue
             origin = fields[ORIGIN_IDX]
             if origin not in wanted:
                 continue
+            # CLASS 'F' is scheduled passenger service. The L/G/P classes
+            # (charter, all-cargo, and other non-scheduled operations) are
+            # excluded deliberately: this dataset measures scheduled
+            # passenger demand, which is what expansion decisions turn on.
             if fields[CLASS_IDX] != "F":
                 continue
             used_lines += 1
@@ -172,6 +201,10 @@ def stream_bts_aggregates(iata_codes):
 
             departures[origin] += dep_perf
             passengers[origin] += pax
+            # A route is keyed on destination *and* reported distance. BTS
+            # reports slightly different distances for the same city pair
+            # across carriers and months, so those variants count as separate
+            # routes, inflating bts_total_routes for most in-scope airports.
             route_key = (dest, distance)
             routes[origin].add(route_key)
             if distance >= LONGHAUL_MILES:
@@ -210,6 +243,8 @@ def build_dataset():
         oa_row = row_by_iata.get(iata)
         ident = resolve_ident(iata, ident_by_iata)
 
+        # An aliased code has no iata_code entry in OurAirports (that is why
+        # it needs an alias), so its row has to be found by `ident` instead.
         if oa_row is None and iata in IATA_ALIASES:
             alias_ident = IATA_ALIASES[iata]
             for r in ourairports_df.itertuples(index=False):
@@ -267,6 +302,10 @@ def build_dataset():
         })
         r.update(bts)
 
+        # A per-row quality flag, not a filter: every in-scope airport is
+        # written out either way, and downstream consumers decide what a
+        # "partial" row is good enough for. The three inputs checked are
+        # exactly those the scoring components depend on.
         has_cy22 = r["enplanements_cy22"] is not None
         r["data_completeness"] = (
             "full" if (has_cy22 and r["runway_count"] > 0 and r["bts_total_routes"] > 0) else "partial"

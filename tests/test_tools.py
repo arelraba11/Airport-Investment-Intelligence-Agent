@@ -1,11 +1,21 @@
+"""Tests for resolve_airport's free-text matching (backend/tools.py).
+
+Most cases below are pinned regressions, each recording a specific way the
+matcher previously went wrong — a confident match to an unrelated airport, or
+an unnecessary disambiguation turn. The docstrings keep the failing input and
+its measured similarity ratio next to the assertion, because the ratios are
+what show why the fix had to be a word-level gate rather than a higher
+threshold.
+"""
+
 from backend.tools import resolve_airport
 
 
 def test_resolve_airport_long_form_query_strips_noise_words():
-    """Known gap since Phase A.5: a long free-text phrase like 'Boston Logan
-    airport' used to return not_found even though 'Boston' alone resolved
-    correctly. Fixed by stripping noise words (airport/international/etc.)
-    and retrying the match on the cleaned query.
+    """A long free-text phrase like "Boston Logan airport" used to return
+    not_found even though "Boston" alone resolved correctly. Fixed by
+    stripping noise words (airport/international/etc.) and retrying the match
+    on the cleaned query.
     """
     result = resolve_airport("Boston Logan airport")
     assert result.get("iata") == "BOS"
@@ -26,7 +36,7 @@ def test_resolve_airport_noisy_query_prefers_confident_stripped_match():
 
 
 def test_resolve_airport_long_noisy_query_not_pulled_to_wrong_candidates():
-    """"International" pulls a long phrase toward every unrelated
+    """The word "International" pulls a long phrase toward every unrelated
     "... International" in the dataset: "Boston Logan International Airport"
     used to return ambiguous across PWM/PDX/MCO/RSW/LAX — a candidate list
     that didn't even contain BOS. Stripping the noise words resolves it.
@@ -69,7 +79,7 @@ def test_resolve_airport_portland_still_ambiguous():
 
 
 def test_resolve_airport_out_of_scope_city_is_not_a_confident_match():
-    """Live-QA bug: "Bar Harbor" resolved confidently to BDL (Bradley
+    """The query "Bar Harbor" used to resolve confidently to BDL (Bradley
     International, Hartford CT). "bar harbor" vs. the city "Hartford" scores
     0.5556 on SequenceMatcher — bare shared characters (a, r, h, o), no shared
     word — which cleared _FUZZY_MIN_RATIO as the *only* plausible candidate,
@@ -118,8 +128,8 @@ def test_resolve_airport_out_of_scope_non_us_airport():
 
 
 def test_resolve_airport_alias_beats_unrelated_fuzzy_match():
-    """"sf airport" used to resolve to SRQ (Sarasota) on a 0.5556 character
-    match, beating the "sf" -> SFO alias that the noise-word retry would have
+    """The query "sf airport" used to resolve to SRQ (Sarasota) on a 0.5556
+    character match, beating the "sf" -> SFO alias that the noise-word retry would have
     found. Rejecting the unanchored fuzzy match lets the retry reach the alias.
     """
     assert resolve_airport("sf airport").get("iata") == "SFO"

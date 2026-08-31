@@ -1,6 +1,6 @@
 """FastAPI app: POST /chat and GET /health.
 
-/chat runs the full tool-use agent loop (agent.py, Phase A.3) over the
+/chat runs the full tool-use agent loop (agent.py) over the
 session's message history. Any exception raised by the Anthropic API call
 itself (as opposed to a tool call, which agent.py already catches and
 recovers from) is an unexpected failure, not a normal conversational path —

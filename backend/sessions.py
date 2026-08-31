@@ -1,9 +1,8 @@
 """In-memory session store: session_id -> list of chat messages.
 
-Process-local and non-persistent by design (Phase A.1 scope) — sessions are
-lost on server restart. Good enough for a single-process dev/demo backend;
-would need a real store (Redis, DB) to survive restarts or scale to multiple
-workers.
+Process-local and non-persistent by design — sessions are lost on server
+restart. Good enough for a single-process dev/demo backend; would need a
+real store (Redis, DB) to survive restarts or scale to multiple workers.
 """
 
 from typing import TypedDict

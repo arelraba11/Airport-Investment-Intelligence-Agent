@@ -5,15 +5,14 @@ column name) and returns a float in [0, 100], or None when a required input
 is missing — never a fabricated number.
 
 All four investment_score components are percentile-normalized across
-`full_dataset` before being combined. This is deliberate: components have
-wildly different natural scales (e.g. raw congestion utilization sits in the
-~1.85-42.7% band across the current 80-airport scope, while raw longhaul share
-and growth CAGR occupy entirely different bands), so combining raw values in a
-weighted sum
+`full_dataset` before being combined. This is deliberate: the components have
+wildly different natural scales (raw congestion utilization spans ~1.85-42.7%
+across the current 80-airport scope, while raw long-haul share and growth CAGR
+occupy entirely different bands), so combining raw values in a weighted sum
 would let the widest-spread component dominate the final score's variance
 regardless of its assigned weight in weights.py. Percentile-normalizing every
 component onto the same 0-100 scale is what makes WEIGHTS actually control
-each component's influence, rather than being decorative.
+each component's influence rather than being decorative.
 """
 
 from typing import Callable
@@ -45,6 +44,12 @@ def _raw_congestion_ratio(airport: pd.Series) -> float | None:
 
 
 def _raw_cagr(airport: pd.Series) -> float | None:
+    """Compound annual growth rate of enplanements over the CY22-CY24 window.
+
+    A two-year span, hence the 1/2 exponent. That is the widest window of
+    final FAA figures the dataset carries: CY22 is its earliest enplanement
+    column and CY25 is preliminary, so it is excluded from the trend.
+    """
     cy22 = airport["enplanements_cy22"]
     cy24 = airport["enplanements_cy24"]
     if _is_missing(cy22) or cy22 == 0 or _is_missing(cy24):
@@ -106,6 +111,18 @@ def unmet_demand_score(airport: pd.Series, full_dataset: pd.DataFrame) -> float 
 
 
 def investment_score(airport: pd.Series, full_dataset: pd.DataFrame) -> dict:
+    """Weighted investment score (0-100) for one airport, with its breakdown.
+
+    Returns `components` — the four percentile values that actually feed the
+    weighted sum — alongside `raw_values`, the pre-percentile measurements
+    behind three of them (capacity utilization %, growth CAGR %, long-haul
+    share %). `raw_values` exists purely so the agent can explain a score in
+    concrete terms; it never enters the score itself.
+
+    `confidence` reports how much of the input was available: "high" for all
+    four components on a row the pipeline flagged as fully joined, "partial"
+    for two or three, "insufficient_data" below that.
+    """
     components = {
         "congestion": congestion_score(airport, full_dataset),
         "growth": growth_score(airport, full_dataset),

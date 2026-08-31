@@ -1,4 +1,9 @@
-"""Sanity checks for data/airports_dataset.csv produced by data/build_dataset.py."""
+"""Sanity checks for data/airports_dataset.csv produced by data/build_dataset.py.
+
+These assert against the pipeline's *output*, not its internals, so they
+require data/build_dataset.py to have been run first.
+"""
+
 import csv
 import os
 

@@ -1,8 +1,8 @@
-"""Agent tool implementations (Phase A.2).
+"""Agent tool implementations.
 
-Six tools the agent (Phase A.3) will call, each returning JSON-serializable
-data only — never free text or partial prose. Tools that wrap the existing,
-already-tested scoring engine (`score_airport`, `rank_airports`,
+The six tools the agent loop (`agent.py`) calls, each returning
+JSON-serializable data only — never free text or partial prose. The tools
+backed by the scoring engine (`score_airport`, `rank_airports`,
 `compare_airports`) are thin passthroughs over `scoring/scorer.py` — no
 scoring logic is reimplemented here.
 
@@ -94,11 +94,11 @@ _TOKEN_MIN_RATIO = 0.9
 
 # Descriptive suffix words that don't help identify a specific airport (e.g.
 # "Boston Logan airport" vs. just "Boston") and only dilute the fuzzy-match
-# ratio against short city names. Stripped as a fallback pass, not from the
-# query the user actually sees applied first — see resolve_airport.
+# ratio against short city names. Stripped only in the fallback retry pass,
+# never in the first pass — see resolve_airport.
 _NOISE_WORDS = re.compile(r"\b(airport|international|regional|intl)\b", re.IGNORECASE)
 
-_BBOX_DEGREES = 0.15  # ~15km bounding box around the airport for OpenSky queries
+_BBOX_DEGREES = 0.15  # +/- ~17km around the airport lat/lon, for OpenSky queries
 _TRAFFIC_CACHE_TTL_SECONDS = 600  # 10 minutes
 _traffic_cache: dict[str, tuple[float, dict]] = {}
 
@@ -327,7 +327,7 @@ def score_airport(iata: str) -> dict:
     Returns the overall investment_score, its 4 percentile-normalized
     components, raw_values for human-readable explanations, and confidence.
     Raises scoring.scorer.AirportNotFoundError for an out-of-scope code —
-    left to the agent loop's tool-error handling (Phase A.3), not caught here.
+    left to the agent loop's tool-error handling, not caught here.
     """
     return scorer.score_airport(iata.strip().upper())
 
