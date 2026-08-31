@@ -142,7 +142,12 @@ def resolve_ident(iata, ident_by_iata):
     return None
 
 
-def load_runway_stats(ourairports_df):
+def load_runway_stats():
+    """Aggregate runways.csv into per-airport stats, indexed by OurAirports `ident`.
+
+    Keyed on `ident` rather than IATA code because that is what runways.csv
+    carries; callers map IATA -> ident via resolve_ident before looking a row up.
+    """
     runways_df = pd.read_csv(RUNWAYS_CSV, dtype=str, keep_default_na=False)
     # Closed runways still appear in the source file; they contribute no
     # capacity, so they must not inflate runway_count.
@@ -232,7 +237,7 @@ def build_dataset():
 
     scope = load_faa_scope()
     ourairports_df, ident_by_iata, row_by_iata = load_ourairports()
-    runway_stats = load_runway_stats(ourairports_df)
+    runway_stats = load_runway_stats()
 
     matched_rows = []
     missing_from_ourairports = []

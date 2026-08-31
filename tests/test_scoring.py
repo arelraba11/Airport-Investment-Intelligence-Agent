@@ -1,14 +1,13 @@
 """Tests for the deterministic scoring engine (scoring/).
 
-Covers each component formula in isolation, the missing-component weight
-renormalization, and scorer.py's lookup/rank/compare orchestration. Reads the
-real dataset rather than a fixture: the components are percentile ranks across
-the whole in-scope population, so they are only meaningful against it.
+Covers the component formulas, the missing-component weight renormalization,
+and scorer.py's lookup/rank/compare orchestration. unmet_demand_score is
+exercised through investment_score rather than directly, since it is a fixed
+combination of the two components already tested in isolation. Reads the real
+dataset rather than a fixture: the components are percentile ranks across the
+whole in-scope population, so they are only meaningful against it.
 """
 
-import math
-
-import pandas as pd
 import pytest
 
 from scoring.data_loader import load_dataset
@@ -16,7 +15,6 @@ from scoring.formulas import (
     congestion_score,
     growth_score,
     longhaul_mix_score,
-    unmet_demand_score,
     investment_score,
 )
 from scoring.scorer import (
