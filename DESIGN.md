@@ -83,6 +83,8 @@ All 7 of Phase A.5's end-to-end test conversations were audited this way: every 
 
 **One deliberate boundary case: explicitly requested projections.** The "never compute a number" rule governs every stored or scored figure. But if a user *explicitly asks* for an extrapolation the dataset cannot contain — "roughly how many passengers will SFO handle in 2030?" — refusing outright would be less useful than answering honestly. The system prompt therefore carves out exactly one exception: the LLM may do that arithmetic itself, but only on tool-provided inputs (e.g. the tool-returned CY24 enplanements and CAGR), and it must label the result as a derived estimate rather than a measured or scored figure, show the calculation and its assumptions, and state the uncertainty (a recovery-era CAGR compounded forward is a trend line, not a forecast). Every number that describes the dataset as it is still comes from a deterministic tool; the LLM is permitted arithmetic only where the user has knowingly asked to leave the data behind, and never unlabeled.
 
+**One caveat to this boundary is enforced by instruction, not code.** Naming an airport as an in-scope *alternative* (as opposed to computing a number about it) is guarded only by a system-prompt rule — see §6, Known Limitations.
+
 ---
 
 ## 5. Data Engineering War Stories
@@ -102,3 +104,4 @@ All 7 of Phase A.5's end-to-end test conversations were audited this way: every 
 - No construction/capital cost data — the score reflects demand pressure, not build feasibility.
 - `CITY_BY_IATA` is manually maintained, not sourced from canonical data.
 - Unmet demand is a heuristic proxy, not a measured quantity (see Tradeoffs).
+- **Scope-alternative suggestions are guarded at the prompt level, not the code level.** Early testing surfaced a case where the agent, when declining an out-of-scope airport, volunteered a specific "in-scope alternative" from parametric knowledge rather than verified data — naming Bangor International (BGR) as available when it is actually excluded (FAA CY24 rank 158, beyond the New England supplement's rank-150 cutoff). The system prompt was updated to require a tool call (`rank_airports` or `resolve_airport`) before naming any airport as an in-scope alternative; the fix took the failure rate on repeated testing from 3-of-4 to 0-of-4. This is a probabilistic mitigation, not a structural guarantee — a code-level filter that checks every airport code in a reply against the dataset before sending it would close this class of error completely, but wasn't built given the assignment's time scope. It's flagged here as the one place in the system where "every number is born in a deterministic tool" is enforced by instruction rather than by code.
