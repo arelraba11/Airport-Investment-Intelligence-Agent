@@ -56,7 +56,7 @@ pip install -r requirements.txt
 #    see "Rebuilding the dataset from scratch" below before running this
 cd data && python build_dataset.py && cd ..
 
-# 4. Start the backend (from the repo root; keep this running) — requires .env, see section 3 above
+# 4. Start the backend (from the repo root; keep this running) — needs the .env from section 3
 uvicorn backend.main:app --port 8000
 
 # 5. In a second terminal: install and start the frontend
@@ -64,6 +64,23 @@ cd frontend && npm install && npm run dev
 ```
 
 Then open the URL Vite prints (`http://localhost:5173`).
+
+**Confirming it worked:** `curl http://localhost:8000/health` should return
+`{"status":"ok","airports_loaded":80}`. In the browser you should see the chat UI with four
+suggested-question chips; clicking one returns an answer containing specific figures in roughly
+10-20 seconds, since each question drives several sequential tool calls. If `/chat` returns a 500,
+the API key in `.env` is the first thing to check (section 3).
+
+### Running the tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+42 tests covering the built dataset (`tests/test_build_dataset.py`), the scoring engine
+(`tests/test_scoring.py`), free-text airport resolution (`tests/test_tools.py`), and request
+validation (`tests/test_main.py`). They need only steps 1-2 above — no API key, no running server,
+and no network access, since they run against the pre-built dataset in the repo.
 
 ### Rebuilding the dataset from scratch (optional)
 
@@ -73,7 +90,7 @@ Skip this section entirely unless you specifically want to regenerate `data/airp
 
 `build_dataset.py` merges three public sources:
 
-- **OurAirports** (`data/raw/airports.csv`, `runways.csv`) — auto-downloaded automatically from
+- **OurAirports** (`data/raw/airports.csv`, `runways.csv`) — auto-downloaded from
   `https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/` if not already present;
   no manual step needed for these two.
 - **FAA commercial-service enplanements** — three CY22–CY25(prelim) workbooks, from the FAA's

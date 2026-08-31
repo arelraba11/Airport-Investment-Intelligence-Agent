@@ -5,21 +5,21 @@
 ## 1. Architecture Overview
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Data Pipeline   │────▶│  airports_dataset │────▶│  Scoring Engine  │
-│ (build_dataset.py)│     │      .csv         │     │  (scoring/)      │
-│ OurAirports +    │     │  80 airports,      │     │  4-component     │
-│ FAA CY22-25 +    │     │  19 columns,       │     │  weighted score  │
-│ BTS T-100        │     │  100% complete     │     │                  │
-└─────────────────┘     └──────────────────┘     └────────┬────────┘
-                                                             │
-                                                             ▼
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Chat UI        │◀───▶│   Agent Loop      │◀───▶│  Tools (6)       │
-│  (React/Vite)     │     │  (agent.py)       │     │  (tools.py)      │
-│  session-based      │     │  manual tool-use   │     │  thin wrappers    │
-│  conversation      │     │  loop, Claude API  │     │  over scoring/    │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
+┌──────────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+│    Data Pipeline     │     │ airports_dataset.csv │     │    Scoring Engine    │
+│  (build_dataset.py)  │     │                      │     │      (scoring/)      │
+│    OurAirports +     │────▶│     80 airports,     │────▶│                      │
+│    FAA CY22-25 +     │     │     19 columns,      │     │     4-component      │
+│      BTS T-100       │     │    100% complete     │     │    weighted score    │
+└──────────────────────┘     └──────────────────────┘     └───────────┬──────────┘
+                                                                      │
+                                                                      ▼
+┌──────────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+│       Chat UI        │     │      Agent Loop      │     │      Tools (6)       │
+│     (React/Vite)     │     │      (agent.py)      │     │      (tools.py)      │
+│    session-based     │◀───▶│   manual tool-use    │◀───▶│    thin wrappers     │
+│     conversation     │     │   loop, Claude API   │     │    over scoring/     │
+└──────────────────────┘     └──────────────────────┘     └──────────────────────┘
 ```
 
 **Flow:** raw public data is merged once, offline, into a flat CSV. The scoring engine reads that CSV and computes a deterministic investment score per airport. Six tools expose that scoring engine (plus airport lookup and live traffic) to an LLM agent, which holds a conversation with the user, deciding which tools to call and explaining the results — but never computing a number itself.
@@ -79,7 +79,7 @@ The boundary is sharp: **the LLM never computes a number.** Every score, percent
 
 This is enforced by a hard system-prompt rule ("never report a number without a tool call") and independently verified. For example, the question "What is the unmet flight demand in SFO airport and why?" produced a real `score_airport("SFO")` tool call returning `unmet_demand: 80.25` with `growth: 81.25` (from a 10.85% CAGR) and `congestion: 78.75` (from 16.18% utilization) in its `raw_values`. The reply reproduced these exact figures and the underlying formula (`unmet_demand_score = growth_score × 0.6 + congestion_score × 0.4`) rather than stating a bare number — confirmed against the actual tool trace, not read at face value.
 
-All 7 of Phase A.5's end-to-end test conversations were audited this way: every request/response, including `tool_use`/`tool_result` blocks, was captured via `ANTHROPIC_LOG=debug` and cross-checked numeric claim by numeric claim against the trace. All 10 tool calls made across the 7 tests accounted for every score, percentage, and count quoted back to the user — no invented numbers found.
+All 7 end-to-end test conversations were audited this way: every request/response, including `tool_use`/`tool_result` blocks, was captured via `ANTHROPIC_LOG=debug` and cross-checked numeric claim by numeric claim against the trace. All 10 tool calls made across the 7 tests accounted for every score, percentage, and count quoted back to the user — no invented numbers found.
 
 **One deliberate boundary case: explicitly requested projections.** The "never compute a number" rule governs every stored or scored figure. But if a user *explicitly asks* for an extrapolation the dataset cannot contain — "roughly how many passengers will SFO handle in 2030?" — refusing outright would be less useful than answering honestly. The system prompt therefore carves out exactly one exception: the LLM may do that arithmetic itself, but only on tool-provided inputs (e.g. the tool-returned CY24 enplanements and CAGR), and it must label the result as a derived estimate rather than a measured or scored figure, show the calculation and its assumptions, and state the uncertainty (a recovery-era CAGR compounded forward is a trend line, not a forecast). Every number that describes the dataset as it is still comes from a deterministic tool; the LLM is permitted arithmetic only where the user has knowingly asked to leave the data behind, and never unlabeled.
 
