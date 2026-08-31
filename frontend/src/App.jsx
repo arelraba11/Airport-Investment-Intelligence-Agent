@@ -44,7 +44,7 @@ function App() {
       const data = await res.json()
       setSessionId(data.session_id)
       setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }])
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
