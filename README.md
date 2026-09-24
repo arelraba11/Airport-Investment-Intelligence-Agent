@@ -6,8 +6,7 @@ An AI agent that helps an airport-modernization investment firm identify which U
 strong candidates for terminal/capacity expansion. It combines public aviation data (OurAirports,
 FAA enplanements, BTS T-100 traffic) with a deterministic Python scoring engine and a conversational
 chat interface — the LLM explains and answers follow-up questions, but never computes a number
-itself. Built for the Deloitte Digital Forward Deployed Engineer take-home assignment. See
-[DESIGN.md](DESIGN.md) for scoring methodology, architecture, and key tradeoffs.
+itself. See [DESIGN.md](DESIGN.md) for scoring methodology, architecture, and key tradeoffs.
 
 ## 2. Prerequisites
 

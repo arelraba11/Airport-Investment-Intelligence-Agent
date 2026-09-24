@@ -1,7 +1,5 @@
 # Design Document — Airport Investment Intelligence Agent
 
-**FDE Take-Home Assignment @ Deloitte Digital**
-
 ## 1. Architecture Overview
 
 ```
